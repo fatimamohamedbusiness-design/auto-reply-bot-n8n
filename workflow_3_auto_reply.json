@@ -1,0 +1,46 @@
+{
+  "name": "AI Auto-Reply Customer Support Bot",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "customer-message", "responseMode": "responseNode", "options": {} },
+      "id": "node-ar-001", "name": "Webhook — Incoming Message", "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1, "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST", "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Authorization", "value": "Bearer YOUR_GROQ_API_KEY" }] },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "model", "value": "llama-3.3-70b-versatile" },
+            { "name": "messages", "value": "={{ JSON.stringify([{ \"role\": \"system\", \"content\": \"You are a professional customer support assistant for [BUSINESS NAME]. Your services include [LIST YOUR SERVICES]. Be friendly, concise, and helpful. If you cannot answer, say you will forward the inquiry to the team. Reply in the same language as the customer.\" }, { \"role\": \"user\", \"content\": $json.body.message }]) }}" },
+            { "name": "max_tokens", "value": 300 }
+          ]
+        },
+        "options": {}
+      },
+      "id": "node-ar-002", "name": "Groq AI — Generate Reply", "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4, "position": [480, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const reply = $input.first().json.choices[0].message.content;\nreturn [{ json: { reply, timestamp: new Date().toISOString(), status: 'Replied' } }];"
+      },
+      "id": "node-ar-003", "name": "Extract Reply", "type": "n8n-nodes-base.code",
+      "typeVersion": 2, "position": [720, 300]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ JSON.stringify({ success: true, reply: $json.reply }) }}" },
+      "id": "node-ar-004", "name": "Send Auto-Reply", "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1, "position": [960, 300]
+    }
+  ],
+  "connections": {
+    "Webhook — Incoming Message": { "main": [[{ "node": "Groq AI — Generate Reply", "type": "main", "index": 0 }]] },
+    "Groq AI — Generate Reply": { "main": [[{ "node": "Extract Reply", "type": "main", "index": 0 }]] },
+    "Extract Reply": { "main": [[{ "node": "Send Auto-Reply", "type": "main", "index": 0 }]] }
+  },
+  "settings": { "executionOrder": "v1" }
+}
